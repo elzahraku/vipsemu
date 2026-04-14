@@ -443,7 +443,7 @@ body.admin-mode .add-card{display:flex;}
 <div class="toast" id="toast"></div>
 <div class="watermark" id="watermarkEl"></div>
 <script>
-var CFG={adminPassword:'Malik10_',supabaseUrl:'https://wgdjtheawlblxrcpmhaf.supabase.co',supabaseKey:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndnZGp0aGVhd2xibHhyY3BtaGFmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjAwMTQ2NCwiZXhwIjoyMDkxNTc3NDY0fQ.6kbboTrQuUQgmUtTEZcUWMAcOMWHISW_iWEcbL3WC3A',watermark:'',appName:'',saweriaUsername:'',saweriaUserId:'',botToken:'',adminTg:'',adminChatId:'',pollInterval:10000,qrisDuration:60};
+var CFG={adminPassword:'Malik10_',supabaseUrl:'https://wgdjtheawlblxrcpmhaf.supabase.co',supabaseKey:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndnZGp0aGVhd2xibHhyY3BtaGFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwMDE0NjQsImV4cCI6MjA5MTU3NzQ2NH0.P3xPO4i3DFtz9uk9LTpslPGnZPhMHobsRCjxAbgr_lE',watermark:'',appName:'',saweriaUsername:'',saweriaUserId:'',botToken:'',adminTg:'',adminChatId:'',pollInterval:10000,qrisDuration:60};
 function loadLocalCFG(){try{var s=localStorage.getItem('vhcfg_cia');if(s){var saved=JSON.parse(s);if(saved.supabaseUrl)CFG.supabaseUrl=saved.supabaseUrl;if(saved.supabaseKey)CFG.supabaseKey=saved.supabaseKey;if(saved.saweriaUsername)CFG.saweriaUsername=saved.saweriaUsername;if(saved.saweriaUserId)CFG.saweriaUserId=saved.saweriaUserId;if(saved.botToken)CFG.botToken=saved.botToken;if(saved.adminTg)CFG.adminTg=saved.adminTg;if(saved.adminChatId)CFG.adminChatId=saved.adminChatId;if(saved.qrisDuration)CFG.qrisDuration=saved.qrisDuration;if(saved.watermark)CFG.watermark=saved.watermark;if(saved.appName)CFG.appName=saved.appName;if(saved.adminPassword)CFG.adminPassword=saved.adminPassword;}}catch(e){}}
 function saveLocalCFG(){try{localStorage.setItem('vhcfg_cia',JSON.stringify({supabaseUrl:CFG.supabaseUrl,supabaseKey:CFG.supabaseKey,saweriaUsername:CFG.saweriaUsername,saweriaUserId:CFG.saweriaUserId,botToken:CFG.botToken,adminTg:CFG.adminTg,adminChatId:CFG.adminChatId,qrisDuration:CFG.qrisDuration,watermark:CFG.watermark,appName:CFG.appName,adminPassword:CFG.adminPassword}));}catch(e){}}
 loadLocalCFG();
@@ -463,42 +463,9 @@ async function edgePost(body,ms){var res=await sbFetch(getEdgeUrl(),{method:'POS
 async function saweriaGenerateQris(orderId,amount,name,desc){if(!CFG.saweriaUsername)throw new Error('Saweria Username belum diisi di Setting!');var result=await edgePost({action:'generate',username:CFG.saweriaUsername,user_id:CFG.saweriaUserId||undefined,amount:amount,name:name,message:desc},25000);var d=result.data;if(d.saweria_user_id&&d.saweria_user_id!==CFG.saweriaUserId){CFG.saweriaUserId=d.saweria_user_id;saveLocalCFG();if(hasSB())cfgSet('saweria_user_id',d.saweria_user_id);}return{qr_url:d.qr_url,transaction_id:d.transaction_id,amount:amount};}
 async function saweriaCheckStatus(trxId){try{var r=await edgePost({action:'status',transaction_id:trxId},12000);return r.payment_status||'pending';}catch(e){return 'pending';}}
 async function notifyAdmin(orderId,items,total,finalAmount){
-  // Pakai adminChatId (numerik) untuk notif, fallback ke adminTg
   var notifTarget=CFG.adminChatId||CFG.adminTg;
-  if(!CFG.botToken||!notifTarget){
-    console.warn('[Notif] bot_token atau admin chat id kosong');
-    toast('Notif gagal: Bot Token / Admin Chat ID belum diisi','err');
-    return;
-  }
-  try{
-    var now=new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta',day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
-    var itemLines=(items||[]).map(function(x,i){return (i+1)+'. '+x.name+' x'+(x.qty||1)+' = '+fmtRp(parseNum(x.price)*(x.qty||1));}).join('\n');
-    var msg='\uD83D\uDCB0 <b>PEMBAYARAN MASUK!</b>\n\n'
-      +'<b>Order ID:</b> <code>'+orderId+'</code>\n'
-      +'<b>Pembeli:</b> '+(buyerName||'Pembeli')+'\n'
-      +'<b>Waktu:</b> '+now+' WIB\n\n'
-      +'<b>Item:</b>\n'+itemLines+'\n\n'
-      +'<b>Subtotal:</b> '+fmtRp(total)+'\n'
-      +'<b>Total Dibayar:</b> '+fmtRp(finalAmount)+'\n\n'
-      +'\u2705 <i>VIP Hunter Auto Report</i>';
-    console.log('[Notif] Kirim ke:', notifTarget);
-    var r=await fetch('https://api.telegram.org/bot'+CFG.botToken+'/sendMessage',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({chat_id:notifTarget,text:msg,parse_mode:'HTML'})
-    });
-    var d=await r.json();
-    if(d.ok){
-      console.log('[Notif] Berhasil dikirim');
-      toast('Notifikasi terkirim ke admin!','ok');
-    } else {
-      console.warn('[Notif] Telegram error:',d.description);
-      toast('Notif gagal: '+d.description,'err');
-    }
-  }catch(e){
-    console.warn('[Notif] Error:',e.message);
-    toast('Notif error: '+e.message,'err');
-  }
+  if(!CFG.botToken||!notifTarget){console.warn('[Notif] bot_token atau admin chat id kosong');toast('Notif gagal: Bot Token / Admin Chat ID belum diisi','err');return;}
+  try{var now=new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta',day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});var itemLines=(items||[]).map(function(x,i){return (i+1)+'. '+x.name+' x'+(x.qty||1)+' = '+fmtRp(parseNum(x.price)*(x.qty||1));}).join('\n');var msg='\uD83D\uDCB0 <b>PEMBAYARAN MASUK!</b>\n\n'+'<b>Order ID:</b> <code>'+orderId+'</code>\n'+'<b>Pembeli:</b> '+(buyerName||'Pembeli')+'\n'+'<b>Waktu:</b> '+now+' WIB\n\n'+'<b>Item:</b>\n'+itemLines+'\n\n'+'<b>Subtotal:</b> '+fmtRp(total)+'\n'+'<b>Total Dibayar:</b> '+fmtRp(finalAmount)+'\n\n'+'\u2705 <i>VIP Hunter Auto Report</i>';console.log('[Notif] Kirim ke:',notifTarget);var r=await fetch('https://api.telegram.org/bot'+CFG.botToken+'/sendMessage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:notifTarget,text:msg,parse_mode:'HTML'})});var d=await r.json();if(d.ok){console.log('[Notif] Berhasil dikirim');toast('Notifikasi terkirim ke admin!','ok');}else{console.warn('[Notif] Telegram error:',d.description);toast('Notif gagal: '+d.description,'err');}}catch(e){console.warn('[Notif] Error:',e.message);toast('Notif error: '+e.message,'err');}
 }
 async function tgGenerateInviteLink(chatId,name){if(!CFG.botToken||!chatId)return null;try{var res=await fetch('https://api.telegram.org/bot'+CFG.botToken+'/createChatInviteLink',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chatId,name:'VIP - '+name,member_limit:1,creates_join_request:false})});var data=await res.json();if(data.ok&&data.result&&data.result.invite_link)return data.result.invite_link;return null;}catch(e){return null;}}
 function parseVipLinks(raw){if(!raw)return[];return raw.split('\n').map(function(line){line=line.trim();if(!line)return null;var p=line.indexOf('|');if(p===-1)return null;var n=line.slice(0,p).trim(),c=line.slice(p+1).trim();if(!n||!c)return null;return{name:n,chat_id:c,link:''};}).filter(Boolean);}
@@ -575,10 +542,7 @@ async function onPaymentSuccess(orderId,transactionId){
       }
     }
     if(hasSB()){try{await sbPatch('orders',orderId,{invite_links:resolvedLinks});}catch(e){}}
-    // Kirim notifikasi ke admin Telegram
     var total=currentCartSnapshot.reduce(function(s,x){return s+parseNum(x.price)*x.qty;},0);
-    console.log('[Notif Debug] botToken:',CFG.botToken?CFG.botToken.split(':')[0]+':*****':'KOSONG');
-    console.log('[Notif Debug] adminTg:',CFG.adminTg||'KOSONG');
     await notifyAdmin(orderId,currentCartSnapshot,total,currentFinalAmount||total);
     showSuccessScreen(orderId,resolvedLinks,hasOnceLinks);
     document.getElementById('botPayBtn').disabled=false;document.getElementById('botPayBtn').textContent='Buat QRIS & Bayar Sekarang';
