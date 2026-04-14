@@ -218,13 +218,13 @@ body.admin-mode .add-card{display:flex;}
 <div class="bg-grid"></div>
 <div class="screen active" id="s-shop">
   <div class="topbar">
-    <div class="tb-logo"><span class="tb-crown">&#x1F451;</span><span class="tb-name" id="appNameEl">VIP CACA</span></div>
+    <div class="tb-logo"><span class="tb-crown">&#x1F451;</span><span class="tb-name" id="appNameEl">VIP SEMU PREMIUM</span></div>
     <div class="tb-right"><button class="tb-btn" id="keyBtn">&#x1F511;<span class="admin-dot" id="adminDot"></span></button></div>
   </div>
   <div class="scroll">
     <div class="hero">
       <div class="hero-tag">Layanan VIP Eksklusif</div>
-      <h1><span class="l1">AKSES</span><span class="l2">VIP CACA</span></h1>
+      <h1><span class="l1">AKSES</span><span class="l2">VIP SEMU PREMIUM</span></h1>
       <p class="hero-sub">Pilih paket VIP anda dan dapatkan akses langsung!</p>
     </div>
     <div class="info-box green"><div class="info-ico">&#x1F4B3;</div><div class="info-txt"><strong>Cara Order:</strong> Pilih paket &#x2192; Keranjang &#x2192; Bayar QRIS &#x2192; <strong>Link akses langsung tampil!</strong></div></div>
@@ -443,7 +443,7 @@ body.admin-mode .add-card{display:flex;}
 <div class="toast" id="toast"></div>
 <div class="watermark" id="watermarkEl"></div>
 <script>
-var CFG={adminPassword:'Malik10_',supabaseUrl:'https://anmzgpfsmawrxilrzpcu.supabase.co',supabaseKey:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFubXpncGZzbWF3cnhpbHJ6cGN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1MTEzNjgsImV4cCI6MjA4OTA4NzM2OH0.B8f-igdUWCGHUH7sGm29cW0fClc4rN0fSIR22Q2lhgE',watermark:'@vip_cia',appName:'VIP CIA',saweriaUsername:'',saweriaUserId:'',botToken:'',adminTg:'',adminChatId:'',pollInterval:10000,qrisDuration:60};
+var CFG={adminPassword:'Malik10_',supabaseUrl:'',supabaseKey:'',watermark:'',appName:'',saweriaUsername:'',saweriaUserId:'',botToken:'',adminTg:'',adminChatId:'',pollInterval:10000,qrisDuration:60};
 function loadLocalCFG(){try{var s=localStorage.getItem('vhcfg_cia');if(s){var saved=JSON.parse(s);if(saved.supabaseUrl)CFG.supabaseUrl=saved.supabaseUrl;if(saved.supabaseKey)CFG.supabaseKey=saved.supabaseKey;if(saved.saweriaUsername)CFG.saweriaUsername=saved.saweriaUsername;if(saved.saweriaUserId)CFG.saweriaUserId=saved.saweriaUserId;if(saved.botToken)CFG.botToken=saved.botToken;if(saved.adminTg)CFG.adminTg=saved.adminTg;if(saved.adminChatId)CFG.adminChatId=saved.adminChatId;if(saved.qrisDuration)CFG.qrisDuration=saved.qrisDuration;if(saved.watermark)CFG.watermark=saved.watermark;if(saved.appName)CFG.appName=saved.appName;if(saved.adminPassword)CFG.adminPassword=saved.adminPassword;}}catch(e){}}
 function saveLocalCFG(){try{localStorage.setItem('vhcfg_cia',JSON.stringify({supabaseUrl:CFG.supabaseUrl,supabaseKey:CFG.supabaseKey,saweriaUsername:CFG.saweriaUsername,saweriaUserId:CFG.saweriaUserId,botToken:CFG.botToken,adminTg:CFG.adminTg,adminChatId:CFG.adminChatId,qrisDuration:CFG.qrisDuration,watermark:CFG.watermark,appName:CFG.appName,adminPassword:CFG.adminPassword}));}catch(e){}}
 loadLocalCFG();
