@@ -1,0 +1,200 @@
+// Supabase Edge Function: saweria-qris
+// Deploy via Supabase Dashboard → Edge Functions → New Function
+
+const SAWERIA_BACKEND = "https://backend.saweria.co";
+const SAWERIA_FRONTEND = "https://saweria.co";
+
+const HEADERS_SAWERIA = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Accept": "application/json, text/plain, */*",
+  "Content-Type": "application/json",
+  "Referer": "https://saweria.co/",
+  "Origin": "https://saweria.co",
+};
+
+// ── Format Rupiah ────────────────────────────────────────────────────
+function fmtRp(n: number): string {
+  return "Rp " + n.toLocaleString("id-ID");
+}
+
+// ── Kirim notifikasi Telegram ke admin ───────────────────────────────
+async function sendTelegramNotif(
+  botToken: string,
+  adminTg: string,
+  orderId: string,
+  buyerName: string,
+  items: any[],
+  total: number,
+  finalAmount: number,
+) {
+  if (!botToken || !adminTg) return;
+
+  // Resolve chat_id admin — bisa username atau numeric ID
+  const chatId = adminTg.startsWith("-") || /^\d+$/.test(adminTg)
+    ? adminTg
+    : "@" + adminTg.replace(/^@/, "");
+
+  const now = new Date().toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "2-digit", month: "long", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+
+  const itemLines = Array.isArray(items)
+    ? items.map((x: any, i: number) => `   ${i + 1}. ${x.name} ×${x.qty || 1} — ${fmtRp((parseInt(x.price) || 0) * (x.qty || 1))}`).join("\n")
+    : "   -";
+
+  const text = [
+    "💰 <b>PEMBAYARAN MASUK!</b>",
+    "",
+    `📦 <b>Order ID</b>: <code>${orderId}</code>`,
+    `👤 <b>Pembeli</b>: ${buyerName}`,
+    `🗓 <b>Waktu</b>: ${now} WIB`,
+    "",
+    "🛒 <b>Item:</b>",
+    itemLines,
+    "",
+    `💵 <b>Subtotal</b>: ${fmtRp(total)}`,
+    `✅ <b>Total Dibayar</b>: ${fmtRp(finalAmount)}`,
+    "",
+    "─────────────────",
+    "🤖 <i>VIP Hunter Auto Report</i>",
+  ].join("\n");
+
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id:    chatId,
+        text:       text,
+        parse_mode: "HTML",
+      }),
+    });
+  } catch (e) {
+    console.warn("[TG Notif Error]", e);
+  }
+}
+
+// ── Ambil user_id dari halaman profil Saweria ───────────────────────
+async function getSaweriaUserId(username: string): Promise<string> {
+  const res = await fetch(`${SAWERIA_FRONTEND}/${username}`, { headers: HEADERS_SAWERIA });
+  if (!res.ok) throw new Error(`Profil Saweria tidak ditemukan untuk: ${username}`);
+  const html = await res.text();
+  const match = html.match(/"id"\s*:\s*"([0-9a-f-]{36})"/);
+  if (match) return match[1];
+  const nd = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (nd) {
+    try {
+      const data = JSON.parse(nd[1]);
+      const userId = data?.props?.pageProps?.data?.id;
+      if (userId) return userId;
+    } catch (_) {}
+  }
+  throw new Error("Tidak bisa ambil user ID Saweria. Cek username kamu.");
+}
+
+// ── Buat payment QRIS ke Saweria ────────────────────────────────────
+async function createPayment(userId: string, amount: number, name: string, message: string) {
+  const payload = {
+    agree: true, notUnderage: true,
+    message, amount,
+    payment_type: "qris", vote: "", currency: "IDR",
+    customer_info: { first_name: name, email: "buyer@viphunter.app", phone: "" },
+  };
+
+  const res = await fetch(`${SAWERIA_BACKEND}/donations/${userId}`, {
+    method: "POST", headers: HEADERS_SAWERIA, body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) throw new Error(`Saweria error ${res.status}: ${await res.text()}`);
+
+  const json = await res.json();
+  const data = json?.data;
+  if (!data) throw new Error("Response Saweria tidak valid");
+
+  const qrString = data.qr_string;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&ecc=M&data=${encodeURIComponent(qrString)}`;
+
+  return { transaction_id: data.id, qr_string: qrString, qr_url: qrUrl, amount };
+}
+
+// ── Cek status pembayaran ────────────────────────────────────────────
+async function checkStatus(transactionId: string): Promise<string> {
+  try {
+    const res = await fetch(`${SAWERIA_BACKEND}/donations/qris/${transactionId}`, { headers: HEADERS_SAWERIA });
+    if (!res.ok) return "pending";
+    const json = await res.json();
+    const qrString = json?.data?.qr_string;
+    if (qrString === "" || qrString === null || qrString === undefined) return "paid";
+    return "pending";
+  } catch (_) { return "pending"; }
+}
+
+// ── Main handler ─────────────────────────────────────────────────────
+Deno.serve(async (req: Request) => {
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Content-Type": "application/json",
+  };
+
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: corsHeaders });
+
+  try {
+    const body = await req.json();
+    const { action } = body;
+
+    // ── ACTION: generate ────────────────────────────────────────────
+    if (action === "generate") {
+      const { username, amount, name, message } = body;
+      if (!username) throw new Error("username wajib diisi");
+      if (!amount || amount < 1000) throw new Error("amount minimal 1000");
+      let userId = body.user_id || null;
+      if (!userId) userId = await getSaweriaUserId(username);
+      const result = await createPayment(userId, amount, name || "Pembeli", message || "VIP Hunter Order");
+      return new Response(JSON.stringify({ status: true, data: { ...result, saweria_user_id: userId } }), { headers: corsHeaders });
+    }
+
+    // ── ACTION: status ──────────────────────────────────────────────
+    if (action === "status") {
+      const { transaction_id } = body;
+      if (!transaction_id) throw new Error("transaction_id wajib diisi");
+      const paymentStatus = await checkStatus(transaction_id);
+      return new Response(JSON.stringify({ status: true, payment_status: paymentStatus }), { headers: corsHeaders });
+    }
+
+    // ── ACTION: notify_admin ────────────────────────────────────────
+    // Dipanggil dari HTML saat pembayaran sukses
+    if (action === "notify_admin") {
+      const { bot_token, admin_tg, order_id, buyer_name, items, total, final_amount } = body;
+
+      await sendTelegramNotif(
+        bot_token    || "",
+        admin_tg     || "",
+        order_id     || "-",
+        buyer_name   || "Pembeli",
+        items        || [],
+        total        || 0,
+        final_amount || 0,
+      );
+
+      return new Response(JSON.stringify({ status: true, message: "Notifikasi terkirim" }), { headers: corsHeaders });
+    }
+
+    // ── ACTION: get_user_id ─────────────────────────────────────────
+    if (action === "get_user_id") {
+      const { username } = body;
+      if (!username) throw new Error("username wajib diisi");
+      const userId = await getSaweriaUserId(username);
+      return new Response(JSON.stringify({ status: true, user_id: userId }), { headers: corsHeaders });
+    }
+
+    throw new Error(`action tidak dikenal: ${action}`);
+
+  } catch (e) {
+    return new Response(JSON.stringify({ status: false, message: e instanceof Error ? e.message : String(e) }), { status: 400, headers: corsHeaders });
+  }
+});
